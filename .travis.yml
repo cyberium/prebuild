@@ -1,0 +1,78 @@
+#
+# This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
+language: cpp
+
+# reduce clone time by only getting the latest commit and not the whole history (default for travis is 100)
+git:
+  depth: 1
+
+# don't re-build for tags so that [publish binary] is not re-run
+# https://github.com/travis-ci/travis-ci/issues/1532
+branches:
+  except:
+    - /^Last_.*/
+
+# use ubuntu 18.04 VM
+dist:
+    bionic
+
+# install dpendencies for linux
+addons:
+  apt:
+    packages:
+      - build-essential
+      - libtool
+      - make
+
+# build matrix
+matrix:
+  include:
+    # linux builds on gcc ARM64
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env:
+        - CC=gcc-7
+        - CXX=g++-7
+        - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
+
+script:
+  # Install newer cmake
+  - mkdir ${DEPS_DIR} && cd ${DEPS_DIR}
+  - travis_retry wget --no-check-certificate https://cmake.org/files/v3.16/cmake-3.16.2.tar.gz
+  - tar -xvf cmake-3.16.2.tar.gz > /dev/null
+  - mv cmake-3.16.2 cmake-source
+  - cd cmake-source
+  - ./configure --prefix=${DEPS_DIR}/cmake-install
+  - make -j2
+  - make install
+  - PATH=${DEPS_DIR}/cmake-install:${DEPS_DIR}/cmake-install/bin:$PATH
+  - cd ..
+  - tar -zcvf cmake-arm-3.16.2.tar.gz cmake-install/* > /dev/null
+  - cd ${TRAVIS_BUILD_DIR}
+  - cmake --version
+
+deploy:
+  provider: releases
+  api_key:
+    secure: ${github_token}
+  file: ${DEPS_DIR}/cmake-arm-3.16.2.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
